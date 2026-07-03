@@ -78,44 +78,52 @@ function createWindow() {
 
 // ─── 시스템 트레이 ────────────────────────────────────
 function createTray() {
-  // 기본 내장 아이콘 사용
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAW0lEQVQ4jWNgGAWDDPz//58hLS2NgYGBgRUDA8N/IiT+MzAwMBAr+Z+BgYGBiIAli2lgYGBg+P//P8P//4yMjAyUGDiqGUQDIxoYNYOogVEzKBkAAAAAAP//AwABgAF/hc3REQAAAABJRU5ErkJggg=='
-  );
+  try {
+    // 기본 내장 아이콘 사용
+    const icon = nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAW0lEQVQ4jWNgGAWDDPz//58hLS2NgYGBgRUDA8N/IiT+MzAwMBAr+Z+BgYGBiIAli2lgYGBg+P//P8P//4yMjAyUGDiqGUQDIxoYNYOogVEzKBkAAAAAAP//AwABgAF/hc3REQAAAABJRU5ErkJggg=='
+    );
 
-  tray = new Tray(icon);
+    tray = new Tray(icon);
 
-  const buildMenu = () => Menu.buildFromTemplate([
-    {
-      label: '체크리스트 보기/숨기기',
-      click: () => {
-        if (!mainWindow) { createWindow(); return; }
-        mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-      }
-    },
-    { type: 'separator' },
-    {
-      label: '시작 시 자동 실행',
-      type: 'checkbox',
-      checked: getConfig('autoLaunch', false),
-      click: (item) => {
-        const enable = item.checked;
-        setConfig('autoLaunch', enable);
-        app.setLoginItemSettings({ openAtLogin: enable, openAsHidden: true });
-        // 메뉴 갱신
-        tray.setContextMenu(buildMenu());
-      }
-    },
-    { type: 'separator' },
-    { label: '종료', click: () => app.quit() }
-  ]);
+    const buildMenu = () => Menu.buildFromTemplate([
+      {
+        label: '체크리스트 보기/숨기기',
+        click: () => {
+          if (!mainWindow) { createWindow(); return; }
+          mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '시작 시 자동 실행',
+        type: 'checkbox',
+        checked: getConfig('autoLaunch', false),
+        click: (item) => {
+          const enable = item.checked;
+          setConfig('autoLaunch', enable);
+          try {
+            app.setLoginItemSettings({ openAtLogin: enable, openAsHidden: true });
+          } catch (err) {
+            console.error('자동 실행 설정 오류:', err);
+          }
+          // 메뉴 갱신
+          tray.setContextMenu(buildMenu());
+        }
+      },
+      { type: 'separator' },
+      { label: '종료', click: () => app.quit() }
+    ]);
 
-  tray.setToolTip('체크리스트 위젯');
-  tray.setContextMenu(buildMenu());
-  tray.on('double-click', () => {
-    if (!mainWindow) { createWindow(); return; }
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-  });
+    tray.setToolTip('체크리스트 위젯');
+    tray.setContextMenu(buildMenu());
+    tray.on('double-click', () => {
+      if (!mainWindow) { createWindow(); return; }
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    });
+  } catch (err) {
+    console.error('시스템 트레이 생성 오류 (무시됨):', err);
+  }
 }
 
 // ─── IPC ─────────────────────────────────────────────
@@ -127,11 +135,14 @@ ipcMain.on('window-close',    () => app.quit());
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  // 자동 실행 설정 동기화
-  app.setLoginItemSettings({
-    openAtLogin: getConfig('autoLaunch', false),
-    openAsHidden: true,
-  });
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: getConfig('autoLaunch', false),
+      openAsHidden: true,
+    });
+  } catch (err) {
+    console.error('자동 실행 동기화 오류:', err);
+  }
 });
 
 // 모든 창 닫혀도 트레이로 유지
