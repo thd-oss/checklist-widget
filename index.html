@@ -41,6 +41,7 @@
     .header-actions{display:flex;gap:8px;align-items:center}
     .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.875rem;font-weight:500;cursor:pointer;transition:all var(--transition);white-space:nowrap;outline:none}
     .btn-primary{background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;box-shadow:0 2px 12px rgba(139,92,246,.35)}
+    #btn-add-topic{flex-shrink:0}
     .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(139,92,246,.5)}
     .btn-primary:active{transform:translateY(0)}
     .btn-ghost{background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);backdrop-filter:blur(8px)}
@@ -56,8 +57,8 @@
     .tab-btn.active .badge{background:rgba(255,255,255,.3)}
     .view-panel{display:none}
     .view-panel.active{display:block}
-    .add-topic-form{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;backdrop-filter:blur(12px);display:flex;gap:8px;align-items:center}
-    .input-field{flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-main);font-size:.9rem;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+    .add-topic-form{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;backdrop-filter:blur(12px);display:flex;gap:8px;align-items:center;overflow:hidden}
+    .input-field{flex:1;min-width:0;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-main);font-size:.9rem;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
     .input-field::placeholder{color:var(--text-muted)}
     .input-field:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
     .topics-list{display:flex;flex-direction:column;gap:16px}
@@ -152,6 +153,13 @@
     .toast{padding:10px 16px;background:rgba(30,34,50,.95);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-size:.85rem;box-shadow:0 4px 24px rgba(0,0,0,.4);backdrop-filter:blur(12px);animation:toastIn .3s cubic-bezier(.34,1.56,.64,1),toastOut .3s ease 2.7s forwards;pointer-events:auto;display:flex;align-items:center;gap:8px;max-width:280px}
     @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
     @keyframes toastOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)}}
+    .update-panel{position:fixed;bottom:-100%;left:16px;right:16px;background:rgba(20,24,38,0.95);border:1px solid var(--accent);border-radius:var(--radius-md);padding:16px;backdrop-filter:blur(16px);box-shadow:0 -10px 40px rgba(139,92,246,0.2);transition:bottom 0.4s cubic-bezier(.34,1.56,.64,1);z-index:150;}
+    .update-panel.show{bottom:16px;}
+    .update-title{font-size:0.95rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;}
+    .update-desc{font-size:0.8rem;color:var(--text-secondary);}
+    .update-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;}
+    .update-progress{margin-top:12px;display:flex;align-items:center;gap:10px;}
+    .update-progress-text{font-size:0.75rem;color:var(--accent-light);font-weight:600;min-width:35px;text-align:right;}
     @media(max-width:600px){.stats-grid{grid-template-columns:repeat(2,1fr)}.tab-btn{font-size:.8rem;padding:7px 10px}.modal{border-radius:var(--radius-lg)}}
   </style>
 </head>
@@ -219,6 +227,20 @@
   </div>
 </div>
 <div class="toast-container" id="toast-container"></div>
+<div class="update-panel" id="update-panel">
+  <div class="update-info">
+    <div class="update-title">🎁 새 버전이 있습니다</div>
+    <div class="update-desc" id="update-desc">업데이트가 가능합니다.</div>
+  </div>
+  <div class="update-actions" id="update-actions">
+    <button class="btn btn-ghost" id="btn-update-later" style="padding: 4px 12px; font-size: 0.8rem;">나중에</button>
+    <button class="btn btn-primary" id="btn-update-now" style="padding: 4px 12px; font-size: 0.8rem;">업데이트</button>
+  </div>
+  <div class="update-progress" id="update-progress" style="display: none;">
+    <div class="progress-bar-wrap" style="width:100%; height:6px; background:rgba(255,255,255,0.1);"><div class="progress-bar-fill" id="update-progress-fill" style="width:0%"></div></div>
+    <div class="update-progress-text" id="update-progress-text">0%</div>
+  </div>
+</div>
 <script>
 'use strict';
 const STORAGE_KEY='checklist_widget_v2';
@@ -535,11 +557,62 @@ $('topics-list').addEventListener('drop',e=>{
 
 loadState();renderTopics();renderHistory();
 
-// ─── Electron 타이틀바 연결 ───────────────────────────
+// ─── Electron 연결 및 자동 업데이트 ───────────────────────────
 if (window.electronAPI) {
+  // 타이틀바
   document.getElementById('tb-min') .addEventListener('click', () => window.electronAPI.minimize());
   document.getElementById('tb-hide').addEventListener('click', () => window.electronAPI.hide());
   document.getElementById('tb-close').addEventListener('click', () => window.electronAPI.close());
+  
+  // 자동 업데이트 로직
+  const panel = document.getElementById('update-panel');
+  const desc = document.getElementById('update-desc');
+  const actions = document.getElementById('update-actions');
+  const progress = document.getElementById('update-progress');
+  const progressFill = document.getElementById('update-progress-fill');
+  const progressText = document.getElementById('update-progress-text');
+  const btnNow = document.getElementById('btn-update-now');
+  const btnLater = document.getElementById('btn-update-later');
+
+  let updateState = 'available';
+
+  window.electronAPI.onUpdateAvailable((info) => {
+    desc.textContent = `버전 ${info.version} 업데이트가 가능합니다.`;
+    panel.classList.add('show');
+  });
+
+  window.electronAPI.onDownloadProgress((prog) => {
+    updateState = 'downloading';
+    actions.style.display = 'none';
+    progress.style.display = 'flex';
+    const percent = Math.round(prog.percent);
+    progressFill.style.width = percent + '%';
+    progressText.textContent = percent + '%';
+    desc.textContent = '업데이트 다운로드 중...';
+  });
+
+  window.electronAPI.onUpdateDownloaded((info) => {
+    updateState = 'downloaded';
+    progress.style.display = 'none';
+    actions.style.display = 'flex';
+    desc.textContent = '다운로드 완료. 지금 재시작하여 적용할까요?';
+    btnNow.textContent = '지금 재시작';
+    btnNow.disabled = false;
+  });
+
+  btnLater.addEventListener('click', () => {
+    panel.classList.remove('show');
+  });
+
+  btnNow.addEventListener('click', () => {
+    if (updateState === 'available') {
+      window.electronAPI.startDownload();
+      btnNow.disabled = true;
+      btnNow.textContent = '요청 중...';
+    } else if (updateState === 'downloaded') {
+      window.electronAPI.quitAndInstall();
+    }
+  });
 } else {
   // 일반 브라우저에서는 타이틀바 숨김
   const tb = document.getElementById('titlebar');

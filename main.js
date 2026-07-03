@@ -1,8 +1,24 @@
 'use strict';
 
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs   = require('fs');
+
+// ─── 자동 업데이트 설정 ─────────────────────────────────────
+autoUpdater.autoDownload = false;
+autoUpdater.on('update-available', (info) => {
+  if (mainWindow) mainWindow.webContents.send('update-available', info);
+});
+autoUpdater.on('download-progress', (progressObj) => {
+  if (mainWindow) mainWindow.webContents.send('download-progress', progressObj);
+});
+autoUpdater.on('update-downloaded', (info) => {
+  if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
+});
+autoUpdater.on('error', (err) => {
+  console.error('자동 업데이트 오류:', err);
+});
 
 // ─── 간단한 JSON 파일 기반 영구 저장소 ───────────────
 const userDataPath = app.getPath('userData');
@@ -131,6 +147,9 @@ ipcMain.on('window-minimize', () => mainWindow?.minimize());
 ipcMain.on('window-hide',     () => mainWindow?.hide());
 ipcMain.on('window-close',    () => app.quit());
 
+ipcMain.on('start-download',  () => autoUpdater.downloadUpdate());
+ipcMain.on('quit-and-install', () => autoUpdater.quitAndInstall());
+
 // ─── 앱 초기화 ───────────────────────────────────────
 app.whenReady().then(() => {
   createWindow();
@@ -143,6 +162,13 @@ app.whenReady().then(() => {
   } catch (err) {
     console.error('자동 실행 동기화 오류:', err);
   }
+
+  // Windows 빌드된 버전에서만 3초 후 업데이트 체크
+  setTimeout(() => {
+    if (process.platform === 'win32' && app.isPackaged) {
+      autoUpdater.checkForUpdates().catch(err => console.error(err));
+    }
+  }, 3000);
 });
 
 // 모든 창 닫혀도 트레이로 유지
