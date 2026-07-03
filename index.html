@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>✅ 체크리스트 위젯</title>
+  <meta name="description" content="상위 주제별 하위 체크리스트 관리 위젯 - 완료 이력 추적 지원" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ===== Electron 타이틀바 ===== */
+    .titlebar{height:40px;background:rgba(10,11,20,.95);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 12px;-webkit-app-region:drag;user-select:none;flex-shrink:0;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+    .titlebar-title{flex:1;font-size:.82rem;font-weight:600;color:var(--text-secondary);letter-spacing:.02em;display:flex;align-items:center;gap:7px}
+    .titlebar-title .t-icon{font-size:1rem}
+    .titlebar-controls{display:flex;gap:6px;-webkit-app-region:no-drag}
+    .tb-btn{width:28px;height:28px;border:none;border-radius:50%;cursor:pointer;font-size:.65rem;display:flex;align-items:center;justify-content:center;transition:opacity .15s;opacity:.7}
+    .tb-btn:hover{opacity:1}
+    .tb-minimize{background:#f59e0b;color:#78350f}
+    .tb-hide{background:#6366f1;color:#fff}
+    .tb-close{background:#ef4444;color:#fff}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg-base:#0d0f17;--bg-card:rgba(255,255,255,.045);--bg-card-hover:rgba(255,255,255,.075);
+      --bg-input:rgba(255,255,255,.06);--border:rgba(255,255,255,.08);--border-focus:rgba(139,92,246,.6);
+      --accent:#8b5cf6;--accent-light:#a78bfa;--success:#10b981;--warning:#f59e0b;
+      --danger:#ef4444;--text-primary:#f1f5f9;--text-secondary:#94a3b8;
+      --text-muted:#4b5563;--text-done:#4b5563;
+      --radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-xl:24px;
+      --shadow-card:0 4px 24px rgba(0,0,0,.4);--transition:.2s cubic-bezier(.4,0,.2,1);
+      --font-main:'Pretendard','Inter',system-ui,sans-serif
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:var(--font-main);background:var(--bg-base);color:var(--text-primary);min-height:100vh;overflow-x:hidden}
+    body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 20% 10%,rgba(139,92,246,.12) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 80% 80%,rgba(16,185,129,.08) 0%,transparent 55%);pointer-events:none;z-index:0}
+    .app-wrapper{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:24px 16px 80px;display:flex;flex-direction:column;gap:24px}
+    .app-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .app-title{display:flex;align-items:center;gap:10px}
+    .app-title h1{font-size:clamp(1.4rem,4vw,1.8rem);font-weight:700;background:linear-gradient(135deg,var(--text-primary) 0%,var(--accent-light) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-.02em}
+    .app-title .icon{font-size:1.6rem;filter:drop-shadow(0 0 8px rgba(139,92,246,.6))}
+    .header-actions{display:flex;gap:8px;align-items:center}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:var(--radius-sm);font-family:var(--font-main);font-size:.875rem;font-weight:500;cursor:pointer;transition:all var(--transition);white-space:nowrap;outline:none}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;box-shadow:0 2px 12px rgba(139,92,246,.35)}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(139,92,246,.5)}
+    .btn-primary:active{transform:translateY(0)}
+    .btn-ghost{background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);backdrop-filter:blur(8px)}
+    .btn-ghost:hover{background:var(--bg-card-hover);color:var(--text-primary);border-color:rgba(255,255,255,.15)}
+    .btn-danger{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.2)}
+    .btn-danger:hover{background:rgba(239,68,68,.2)}
+    .btn-icon{padding:8px;border-radius:var(--radius-sm);font-size:1rem;line-height:1}
+    .tab-nav{display:flex;gap:4px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--radius-md);padding:4px}
+    .tab-btn{flex:1;padding:8px 16px;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);font-family:var(--font-main);font-size:.875rem;font-weight:500;cursor:pointer;transition:all var(--transition);display:flex;align-items:center;justify-content:center;gap:6px}
+    .tab-btn.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(139,92,246,.4)}
+    .tab-btn:not(.active):hover{background:rgba(255,255,255,.06);color:var(--text-primary)}
+    .badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:.7rem;font-weight:700;background:rgba(255,255,255,.2)}
+    .tab-btn.active .badge{background:rgba(255,255,255,.3)}
+    .view-panel{display:none}
+    .view-panel.active{display:block}
+    .add-topic-form{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;backdrop-filter:blur(12px);display:flex;gap:8px;align-items:center}
+    .input-field{flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-main);font-size:.9rem;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+    .input-field::placeholder{color:var(--text-muted)}
+    .input-field:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+    .topics-list{display:flex;flex-direction:column;gap:16px}
+    .topic-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;backdrop-filter:blur(12px);box-shadow:var(--shadow-card);transition:border-color var(--transition);animation:cardIn .3s ease-out}
+    @keyframes cardIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .topic-card:hover{border-color:rgba(255,255,255,.12)}
+    .topic-header{display:flex;align-items:center;gap:10px;padding:14px 16px;background:rgba(255,255,255,.025);border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+    .topic-header:hover{background:rgba(255,255,255,.04)}
+    .topic-color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .topic-name{flex:1;font-size:1rem;font-weight:600;color:var(--text-primary);letter-spacing:-.01em}
+    .topic-progress{font-size:.78rem;color:var(--text-secondary);font-weight:500;display:flex;align-items:center;gap:8px}
+    .progress-bar-wrap{width:60px;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+    .progress-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--success));transition:width .5s cubic-bezier(.4,0,.2,1)}
+    .topic-actions{display:flex;gap:4px;align-items:center}
+    .topic-collapse-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--text-muted);cursor:pointer;border-radius:6px;font-size:.75rem;transition:all var(--transition)}
+    .topic-collapse-btn:hover{background:rgba(255,255,255,.06);color:var(--text-secondary)}
+    .topic-collapse-btn.collapsed{transform:rotate(-90deg)}
+    .topic-body{padding:12px 16px 16px;transition:all var(--transition)}
+    .topic-body.collapsed{display:none}
+    .checklist-item{display:flex;align-items:flex-start;gap:10px;padding:8px 4px;border-radius:var(--radius-sm);transition:background var(--transition);animation:itemIn .25s ease-out}
+    @keyframes itemIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+    .checklist-item:hover{background:rgba(255,255,255,.03)}
+    .check-wrap{position:relative;width:20px;height:20px;flex-shrink:0;margin-top:1px}
+    .check-wrap input[type=checkbox]{position:absolute;opacity:0;width:0;height:0}
+    .check-box{width:20px;height:20px;border-radius:6px;border:2px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--transition);position:relative;overflow:hidden}
+    .check-box::after{content:'';position:absolute;inset:0;background:var(--success);border-radius:4px;transform:scale(0);transition:transform .2s cubic-bezier(.34,1.56,.64,1)}
+    .check-wrap input:checked~.check-box{border-color:var(--success)}
+    .check-wrap input:checked~.check-box::after{transform:scale(1)}
+    .check-icon{position:relative;z-index:1;color:#fff;font-size:.7rem;opacity:0;transform:scale(0) rotate(-20deg);transition:all .2s cubic-bezier(.34,1.56,.64,1) .05s}
+    .check-wrap input:checked~.check-box .check-icon{opacity:1;transform:scale(1) rotate(0deg)}
+    .check-box:hover{border-color:rgba(139,92,246,.6);background:rgba(139,92,246,.08)}
+    .item-text{flex:1;font-size:.9rem;color:var(--text-primary);line-height:1.5;transition:all var(--transition);cursor:default;word-break:break-word}
+    .item-text.done{color:var(--text-done);text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:rgba(75,85,99,.7)}
+    .item-actions{display:flex;gap:2px;opacity:0;transition:opacity var(--transition);flex-shrink:0}
+    .checklist-item:hover .item-actions{opacity:1}
+    .item-btn{width:26px;height:26px;border:none;background:transparent;color:var(--text-muted);border-radius:5px;cursor:pointer;font-size:.8rem;display:flex;align-items:center;justify-content:center;transition:all var(--transition)}
+    .item-btn:hover{background:rgba(255,255,255,.07);color:var(--text-primary)}
+    .item-btn.delete:hover{background:rgba(239,68,68,.12);color:var(--danger)}
+    .done-burst{position:fixed;pointer-events:none;z-index:9999;font-size:1.4rem;animation:burst .8s ease-out forwards}
+    @keyframes burst{0%{opacity:1;transform:scale(.5) translateY(0)}60%{opacity:1;transform:scale(1.3) translateY(-30px)}100%{opacity:0;transform:scale(1) translateY(-60px)}}
+    .add-item-row{display:flex;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+    .item-input{flex:1;padding:7px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-main);font-size:.855rem;outline:none;transition:border-color var(--transition),box-shadow var(--transition)}
+    .item-input::placeholder{color:var(--text-muted)}
+    .item-input:focus{border-color:var(--border-focus);box-shadow:0 0 0 2px rgba(139,92,246,.12)}
+    .add-item-btn{width:30px;height:30px;border:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all var(--transition);flex-shrink:0}
+    .add-item-btn:hover{transform:scale(1.08);box-shadow:0 2px 10px rgba(139,92,246,.45)}
+    .empty-state{text-align:center;padding:48px 24px;color:var(--text-muted)}
+    .empty-state .empty-icon{font-size:3rem;margin-bottom:12px;display:block}
+    .empty-state p{font-size:.9rem;line-height:1.6}
+    .history-controls{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+    .history-filter{display:flex;gap:4px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px}
+    .filter-btn{padding:5px 12px;border:none;border-radius:5px;background:transparent;color:var(--text-secondary);font-family:var(--font-main);font-size:.8rem;font-weight:500;cursor:pointer;transition:all var(--transition)}
+    .filter-btn.active{background:rgba(255,255,255,.08);color:var(--text-primary)}
+    .history-list{display:flex;flex-direction:column;gap:8px}
+    .history-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);backdrop-filter:blur(8px);transition:all var(--transition);animation:cardIn .25s ease-out}
+    .history-item:hover{background:var(--bg-card-hover)}
+    .history-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .history-status-dot.done{background:var(--success);box-shadow:0 0 6px var(--success)}
+    .history-status-dot.undone{background:var(--warning);box-shadow:0 0 6px var(--warning)}
+    .history-content{flex:1;min-width:0}
+    .history-item-text{font-size:.875rem;color:var(--text-primary);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .history-meta{font-size:.75rem;color:var(--text-secondary);margin-top:2px}
+    .history-topic-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:10px;font-size:.7rem;font-weight:600;background:rgba(255,255,255,.07);color:var(--text-secondary);margin-left:6px}
+    .history-action{font-size:.75rem;font-weight:600;padding:3px 8px;border-radius:5px;flex-shrink:0}
+    .history-action.done{background:rgba(16,185,129,.15);color:var(--success)}
+    .history-action.undone{background:rgba(245,158,11,.15);color:var(--warning)}
+    .history-undo-btn{padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--text-secondary);font-family:var(--font-main);font-size:.75rem;cursor:pointer;transition:all var(--transition);flex-shrink:0}
+    .history-undo-btn:hover{background:rgba(255,255,255,.06);color:var(--text-primary)}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+    .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;text-align:center;backdrop-filter:blur(8px)}
+    .stat-value{font-size:1.8rem;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--accent-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;margin-bottom:4px}
+    .stat-label{font-size:.75rem;color:var(--text-muted);font-weight:500}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+    .modal-backdrop.open{display:flex;animation:fadeIn .2s ease}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .modal{background:#181c2a;border:1px solid rgba(255,255,255,.1);border-radius:var(--radius-xl);padding:24px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.6);animation:modalIn .25s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes modalIn{from{opacity:0;transform:scale(.92) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}
+    .modal-title{font-size:1.1rem;font-weight:600;margin-bottom:16px;color:var(--text-primary)}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+    .color-picker{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    .color-swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all var(--transition)}
+    .color-swatch:hover,.color-swatch.selected{transform:scale(1.15);border-color:rgba(255,255,255,.6)}
+    .drag-handle{cursor:grab;color:var(--text-muted);font-size:.75rem;padding:2px;line-height:1;opacity:0;transition:opacity var(--transition)}
+    .checklist-item:hover .drag-handle{opacity:1}
+    .dragging{opacity:.4}
+    .drag-over{border-top:2px solid var(--accent)}
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+    .toast-container{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+    .toast{padding:10px 16px;background:rgba(30,34,50,.95);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);font-size:.85rem;box-shadow:0 4px 24px rgba(0,0,0,.4);backdrop-filter:blur(12px);animation:toastIn .3s cubic-bezier(.34,1.56,.64,1),toastOut .3s ease 2.7s forwards;pointer-events:auto;display:flex;align-items:center;gap:8px;max-width:280px}
+    @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes toastOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)}}
+    @media(max-width:600px){.stats-grid{grid-template-columns:repeat(2,1fr)}.tab-btn{font-size:.8rem;padding:7px 10px}.modal{border-radius:var(--radius-lg)}}
+  </style>
+</head>
+<body>
+<!-- Electron 타이틀바 -->
+<div class="titlebar" id="titlebar">
+  <div class="titlebar-title"><span class="t-icon">✅</span> 체크리스트 위젯</div>
+  <div class="titlebar-controls">
+    <button class="tb-btn tb-minimize" id="tb-min" title="최소화">─</button>
+    <button class="tb-btn tb-hide" id="tb-hide" title="트레이로 숨기기">⊡</button>
+    <button class="tb-btn tb-close" id="tb-close" title="종료">✕</button>
+  </div>
+</div>
+
+<div class="app-wrapper">
+  <header class="app-header">
+    <div class="app-title">
+      <span class="icon">✅</span>
+      <h1>체크리스트</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-icon" id="btn-export" title="데이터 내보내기">💾</button>
+      <button class="btn btn-ghost btn-icon" id="btn-import-trigger" title="데이터 가져오기">📂</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" />
+    </div>
+  </header>
+  <nav class="tab-nav">
+    <button class="tab-btn active" id="tab-checklist">📋 체크리스트 <span class="badge" id="badge-total">0</span></button>
+    <button class="tab-btn" id="tab-history">🕐 완료 이력 <span class="badge" id="badge-history">0</span></button>
+  </nav>
+  <div class="view-panel active" id="view-checklist">
+    <div class="add-topic-form">
+      <input class="input-field" id="new-topic-input" type="text" placeholder="새 주제 이름 입력..." maxlength="60" />
+      <button class="btn btn-primary" id="btn-add-topic">＋ 주제 추가</button>
+    </div>
+    <div class="topics-list" id="topics-list"></div>
+  </div>
+  <div class="view-panel" id="view-history">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" id="stat-done">0</div><div class="stat-label">총 완료</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-undone">0</div><div class="stat-label">취소</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-pending">0</div><div class="stat-label">남은 항목</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-rate">0%</div><div class="stat-label">완료율</div></div>
+    </div>
+    <div class="history-controls">
+      <div class="history-filter">
+        <button class="filter-btn active" data-filter="all">전체</button>
+        <button class="filter-btn" data-filter="done">완료</button>
+        <button class="filter-btn" data-filter="undone">취소됨</button>
+      </div>
+      <button class="btn btn-danger" style="margin-left:auto;font-size:.8rem;padding:6px 12px" id="btn-clear-history">이력 초기화</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="modal-topic">
+  <div class="modal">
+    <p class="modal-title">주제 색상 선택</p>
+    <p style="font-size:.85rem;color:var(--text-secondary)">주제를 시각적으로 구분할 색상을 고르세요.</p>
+    <div class="color-picker" id="color-picker-wrap"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modal-cancel">취소</button>
+      <button class="btn btn-primary" id="modal-confirm">확인</button>
+    </div>
+  </div>
+</div>
+<div class="toast-container" id="toast-container"></div>
+<script>
+'use strict';
+const STORAGE_KEY='checklist_widget_v2';
+const PALETTE=['#8b5cf6','#6366f1','#3b82f6','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#f97316','#14b8a6'];
+let state={topics:[],history:[]};
+let pendingTopicColor=PALETTE[0];
+let historyFilter='all';
+let pendingTopicData=null;
+let dragSrc=null;
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=id=>document.getElementById(id);
+const saveState=()=>localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+function loadState(){try{const r=localStorage.getItem(STORAGE_KEY);if(r)state=JSON.parse(r)}catch{}}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function showToast(msg,emoji='✅'){
+  const c=$('toast-container'),t=document.createElement('div');
+  t.className='toast';t.innerHTML=`<span>${emoji}</span> ${msg}`;
+  c.appendChild(t);setTimeout(()=>t.remove(),3100);
+}
+
+function burst(x,y){
+  const em=['✨','🎉','⭐','💫','🌟'];
+  for(let i=0;i<3;i++){
+    const el=document.createElement('div');el.className='done-burst';
+    el.textContent=em[Math.floor(Math.random()*em.length)];
+    el.style.left=(x+(Math.random()-.5)*40)+'px';el.style.top=(y-10)+'px';
+    el.style.animationDelay=(i*.1)+'s';document.body.appendChild(el);
+    setTimeout(()=>el.remove(),900);
+  }
+}
+
+function formatTime(ts){
+  const d=new Date(ts),pad=n=>String(n).padStart(2,'0');
+  const today=new Date();
+  if(d.toDateString()===today.toDateString()) return`오늘 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return`${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderTopics(){
+  const list=$('topics-list');
+  const totalItems=state.topics.reduce((s,t)=>s+t.items.length,0);
+  $('badge-total').textContent=totalItems;
+  if(state.topics.length===0){
+    list.innerHTML=`<div class="empty-state"><span class="empty-icon">📝</span><p>아직 주제가 없습니다.<br>위에서 첫 번째 주제를 추가해보세요!</p></div>`;return;
+  }
+  list.innerHTML='';
+  state.topics.forEach(topic=>{list.appendChild(buildTopicCard(topic))});
+}
+
+function buildTopicCard(topic){
+  const doneCount=topic.items.filter(i=>i.done).length,total=topic.items.length;
+  const pct=total?Math.round(doneCount/total*100):0;
+  const card=document.createElement('article');card.className='topic-card';card.dataset.topicId=topic.id;
+  card.innerHTML=`
+    <div class="topic-header">
+      <span class="topic-color-dot" style="background:${topic.color}"></span>
+      <span class="topic-name">${esc(topic.name)}</span>
+      <div class="topic-progress"><span>${doneCount}/${total}</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="topic-actions">
+        <button class="btn btn-ghost btn-icon topic-color-btn" data-tid="${topic.id}" style="font-size:.85rem;padding:4px 6px" title="색상 변경">🎨</button>
+        <button class="btn btn-danger btn-icon topic-del-btn" data-tid="${topic.id}" style="font-size:.85rem;padding:4px 6px" title="주제 삭제">🗑</button>
+        <button class="topic-collapse-btn ${topic.collapsed?'collapsed':''}" data-tid="${topic.id}">▾</button>
+      </div>
+    </div>
+    <div class="topic-body ${topic.collapsed?'collapsed':''}" id="tbody-${topic.id}">
+      <div class="items-list" data-tid="${topic.id}">
+        ${topic.items.length===0?'<p style="font-size:.82rem;color:var(--text-muted);padding:6px 0 2px">아직 항목이 없습니다. 아래에서 추가하세요.</p>':topic.items.map(item=>buildItemHTML(topic.id,item)).join('')}
+      </div>
+      <div class="add-item-row">
+        <input class="item-input" type="text" placeholder="새 항목 입력..." maxlength="200" data-tid="${topic.id}" />
+        <button class="add-item-btn" data-tid="${topic.id}" title="항목 추가">+</button>
+      </div>
+    </div>`;
+  return card;
+}
+
+function buildItemHTML(topicId,item){
+  return`<div class="checklist-item" data-iid="${item.id}" data-tid="${topicId}" draggable="true">
+    <span class="drag-handle" title="드래그하여 순서 변경">⠿</span>
+    <label class="check-wrap">
+      <input type="checkbox" ${item.done?'checked':''} data-iid="${item.id}" data-tid="${topicId}" />
+      <span class="check-box"><span class="check-icon">✓</span></span>
+    </label>
+    <span class="item-text ${item.done?'done':''}">${esc(item.text)}</span>
+    <div class="item-actions">
+      <button class="item-btn edit-item-btn" data-iid="${item.id}" data-tid="${topicId}" title="수정">✏️</button>
+      <button class="item-btn delete delete-item-btn" data-iid="${item.id}" data-tid="${topicId}" title="삭제">✕</button>
+    </div>
+  </div>`;
+}
+
+function renderHistory(){
+  const filtered=historyFilter==='all'?state.history:state.history.filter(h=>h.action===historyFilter);
+  $('badge-history').textContent=state.history.length;
+  const allItems=state.topics.flatMap(t=>t.items);
+  const doneItems=allItems.filter(i=>i.done).length,totalItems=allItems.length;
+  const rate=totalItems?Math.round(doneItems/totalItems*100):0;
+  const histUndone=state.history.filter(h=>h.action==='undone').length;
+  $('stat-done').textContent=doneItems;$('stat-undone').textContent=histUndone;
+  $('stat-pending').textContent=totalItems-doneItems;$('stat-rate').textContent=rate+'%';
+  const listEl=$('history-list');
+  if(filtered.length===0){listEl.innerHTML=`<div class="empty-state"><span class="empty-icon">🕐</span><p>아직 기록이 없습니다.<br>체크리스트에서 항목을 완료해보세요!</p></div>`;return;}
+  const sorted=[...filtered].reverse();
+  listEl.innerHTML=sorted.map(h=>{
+    const topic=state.topics.find(t=>t.id===h.topicId);
+    const color=topic?topic.color:'#6b7280';
+    const canUndo=h.action==='done';
+    return`<div class="history-item">
+      <span class="history-status-dot ${h.action}"></span>
+      <div class="history-content">
+        <div class="history-item-text">${esc(h.itemText)}<span class="history-topic-tag" style="border-color:${color}20;background:${color}15;color:${color}">${esc(h.topicName)}</span></div>
+        <div class="history-meta">${formatTime(h.ts)}</div>
+      </div>
+      <span class="history-action ${h.action}">${h.action==='done'?'완료':'취소됨'}</span>
+      ${canUndo?`<button class="history-undo-btn" data-hid="${h.id}" data-iid="${h.itemId}" data-tid="${h.topicId}">취소</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function addTopic(){
+  const input=$('new-topic-input'),name=input.value.trim();
+  if(!name){input.focus();return;}
+  openColorModal(null,name);
+}
+
+function openColorModal(topicId,name=''){
+  pendingTopicData=topicId?{topicId}:{name};
+  const existingTopic=topicId?state.topics.find(t=>t.id===topicId):null;
+  pendingTopicColor=existingTopic?existingTopic.color:PALETTE[0];
+  const wrap=$('color-picker-wrap');
+  wrap.innerHTML=PALETTE.map(c=>`<span class="color-swatch ${c===pendingTopicColor?'selected':''}" style="background:${c}" data-color="${c}" tabindex="0"></span>`).join('');
+  $('modal-topic').classList.add('open');
+  wrap.querySelectorAll('.color-swatch').forEach(sw=>{
+    sw.addEventListener('click',()=>{
+      wrap.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('selected'));
+      sw.classList.add('selected');pendingTopicColor=sw.dataset.color;
+    });
+    sw.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sw.click();}});
+  });
+}
+
+function closeColorModal(){$('modal-topic').classList.remove('open');pendingTopicData=null;}
+$('modal-cancel').addEventListener('click',closeColorModal);
+$('modal-topic').addEventListener('click',e=>{if(e.target===$('modal-topic'))closeColorModal();});
+$('modal-confirm').addEventListener('click',()=>{
+  if(!pendingTopicData)return;
+  if(pendingTopicData.topicId){
+    const t=state.topics.find(t=>t.id===pendingTopicData.topicId);
+    if(t){t.color=pendingTopicColor;saveState();renderTopics();}
+  }else{
+    const newTopic={id:uid(),name:pendingTopicData.name,color:pendingTopicColor,collapsed:false,items:[]};
+    state.topics.push(newTopic);saveState();renderTopics();
+    $('new-topic-input').value='';
+    showToast(`"${newTopic.name}" 주제가 추가되었습니다.`,'📁');
+  }
+  closeColorModal();
+});
+
+$('new-topic-input').addEventListener('keydown',e=>{if(e.key==='Enter')addTopic();});
+$('btn-add-topic').addEventListener('click',addTopic);
+
+$('topics-list').addEventListener('click',e=>{
+  const chk=e.target.closest('input[type="checkbox"]');
+  if(chk){toggleItem(chk.dataset.tid,chk.dataset.iid,e);return;}
+  if(e.target.closest('.delete-item-btn')){const b=e.target.closest('.delete-item-btn');deleteItem(b.dataset.tid,b.dataset.iid);return;}
+  if(e.target.closest('.edit-item-btn')){const b=e.target.closest('.edit-item-btn');editItem(b.dataset.tid,b.dataset.iid);return;}
+  if(e.target.closest('.topic-del-btn')){const b=e.target.closest('.topic-del-btn');deleteTopic(b.dataset.tid);return;}
+  if(e.target.closest('.topic-color-btn')){const b=e.target.closest('.topic-color-btn');openColorModal(b.dataset.tid);return;}
+  if(e.target.closest('.topic-collapse-btn')){
+    const b=e.target.closest('.topic-collapse-btn'),tid=b.dataset.tid;
+    const topic=state.topics.find(t=>t.id===tid);
+    if(topic){topic.collapsed=!topic.collapsed;saveState();renderTopics();}return;
+  }
+  if(e.target.closest('.add-item-btn')){
+    const b=e.target.closest('.add-item-btn'),tid=b.dataset.tid;
+    const input=$('topics-list').querySelector(`.item-input[data-tid="${tid}"]`);
+    if(input)addItem(tid,input);return;
+  }
+});
+
+$('topics-list').addEventListener('keydown',e=>{
+  if(e.target.classList.contains('item-input')&&e.key==='Enter')addItem(e.target.dataset.tid,e.target);
+});
+
+function addItem(tid,input){
+  const text=input.value.trim();if(!text){input.focus();return;}
+  const topic=state.topics.find(t=>t.id===tid);if(!topic)return;
+  topic.items.push({id:uid(),text,done:false});saveState();renderTopics();
+  const ni=$('topics-list').querySelector(`.item-input[data-tid="${tid}"]`);if(ni)ni.focus();
+}
+
+function toggleItem(tid,iid,event){
+  const topic=state.topics.find(t=>t.id===tid);if(!topic)return;
+  const item=topic.items.find(i=>i.id===iid);if(!item)return;
+  item.done=!item.done;
+  state.history.push({id:uid(),topicId:tid,topicName:topic.name,itemId:iid,itemText:item.text,action:item.done?'done':'undone',ts:Date.now()});
+  saveState();renderTopics();renderHistory();
+  if(item.done&&event){
+    const rect=event.target.getBoundingClientRect();
+    burst(rect.left+rect.width/2,rect.top+window.scrollY);
+    showToast(`"${item.text.slice(0,20)}" 완료!`,'🎉');
+  }
+}
+
+function deleteItem(tid,iid){
+  const topic=state.topics.find(t=>t.id===tid);if(!topic)return;
+  if(!confirm('이 항목을 삭제할까요?'))return;
+  topic.items=topic.items.filter(i=>i.id!==iid);saveState();renderTopics();
+}
+
+function editItem(tid,iid){
+  const topic=state.topics.find(t=>t.id===tid);if(!topic)return;
+  const item=topic.items.find(i=>i.id===iid);if(!item)return;
+  const newText=prompt('항목 텍스트 수정:',item.text);
+  if(newText===null)return;const trimmed=newText.trim();if(!trimmed)return;
+  item.text=trimmed;saveState();renderTopics();
+}
+
+function deleteTopic(tid){
+  const topic=state.topics.find(t=>t.id===tid);if(!topic)return;
+  if(!confirm(`"${topic.name}" 주제와 모든 항목을 삭제할까요?`))return;
+  state.topics=state.topics.filter(t=>t.id!==tid);saveState();renderTopics();
+  showToast(`"${topic.name}" 주제가 삭제되었습니다.`,'🗑');
+}
+
+$('history-list').addEventListener('click',e=>{
+  const btn=e.target.closest('.history-undo-btn');if(!btn)return;
+  const{hid,iid,tid}=btn.dataset;undoHistoryEntry(hid,iid,tid);
+});
+
+function undoHistoryEntry(hid,iid,tid){
+  const topic=state.topics.find(t=>t.id===tid);
+  if(!topic){showToast('이미 삭제된 주제의 항목입니다.','⚠️');return;}
+  const item=topic.items.find(i=>i.id===iid);
+  if(!item){showToast('이미 삭제된 항목입니다.','⚠️');return;}
+  item.done=false;
+  state.history.push({id:uid(),topicId:tid,topicName:topic.name,itemId:iid,itemText:item.text,action:'undone',ts:Date.now()});
+  saveState();renderTopics();renderHistory();showToast(`"${item.text.slice(0,20)}" 완료 취소됨`,'↩️');
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');historyFilter=btn.dataset.filter;renderHistory();
+  });
+});
+
+$('btn-clear-history').addEventListener('click',()=>{
+  if(!confirm('모든 완료 이력을 삭제할까요?'))return;
+  state.history=[];saveState();renderHistory();showToast('이력이 초기화되었습니다.','🗑');
+});
+
+$('tab-checklist').addEventListener('click',()=>switchTab('checklist'));
+$('tab-history').addEventListener('click',()=>switchTab('history'));
+function switchTab(name){
+  ['checklist','history'].forEach(n=>{
+    $(`tab-${n}`).classList.toggle('active',n===name);
+    $(`view-${n}`).classList.toggle('active',n===name);
+  });
+  if(name==='history')renderHistory();
+}
+
+$('btn-export').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`checklist_${new Date().toISOString().slice(0,10)}.json`;a.click();
+  URL.revokeObjectURL(url);showToast('체크리스트가 저장되었습니다.','💾');
+});
+
+$('btn-import-trigger').addEventListener('click',()=>$('import-file').click());
+$('import-file').addEventListener('change',e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=evt=>{
+    try{
+      const parsed=JSON.parse(evt.target.result);
+      if(!parsed.topics)throw new Error('올바르지 않은 파일 형식');
+      if(!confirm('현재 데이터를 덮어씁니다. 계속할까요?'))return;
+      state=parsed;saveState();renderTopics();renderHistory();showToast('불러오기 완료!','📂');
+    }catch(err){alert('파일 오류: '+err.message);}
+  };reader.readAsText(file);e.target.value='';
+});
+
+$('topics-list').addEventListener('dragstart',e=>{
+  const item=e.target.closest('.checklist-item');if(!item)return;
+  dragSrc=item;setTimeout(()=>item.classList.add('dragging'),0);e.dataTransfer.effectAllowed='move';
+});
+$('topics-list').addEventListener('dragover',e=>{
+  e.preventDefault();const item=e.target.closest('.checklist-item');
+  if(!item||item===dragSrc)return;
+  $('topics-list').querySelectorAll('.checklist-item').forEach(i=>i.classList.remove('drag-over'));
+  item.classList.add('drag-over');
+});
+$('topics-list').addEventListener('dragend',()=>{
+  if(dragSrc)dragSrc.classList.remove('dragging');
+  $('topics-list').querySelectorAll('.checklist-item').forEach(i=>i.classList.remove('drag-over'));
+  dragSrc=null;
+});
+$('topics-list').addEventListener('drop',e=>{
+  e.preventDefault();const target=e.target.closest('.checklist-item');
+  if(!target||!dragSrc||target===dragSrc)return;
+  const srcTid=dragSrc.dataset.tid,tgtTid=target.dataset.tid;if(srcTid!==tgtTid)return;
+  const srcIid=dragSrc.dataset.iid,tgtIid=target.dataset.iid;
+  const topic=state.topics.find(t=>t.id===srcTid);if(!topic)return;
+  const srcIdx=topic.items.findIndex(i=>i.id===srcIid),tgtIdx=topic.items.findIndex(i=>i.id===tgtIid);
+  if(srcIdx<0||tgtIdx<0)return;
+  const[moved]=topic.items.splice(srcIdx,1);topic.items.splice(tgtIdx,0,moved);
+  saveState();renderTopics();
+});
+
+loadState();renderTopics();renderHistory();
+
+// ─── Electron 타이틀바 연결 ───────────────────────────
+if (window.electronAPI) {
+  document.getElementById('tb-min') .addEventListener('click', () => window.electronAPI.minimize());
+  document.getElementById('tb-hide').addEventListener('click', () => window.electronAPI.hide());
+  document.getElementById('tb-close').addEventListener('click', () => window.electronAPI.close());
+} else {
+  // 일반 브라우저에서는 타이틀바 숨김
+  const tb = document.getElementById('titlebar');
+  if (tb) tb.style.display = 'none';
+}
+</script>
+</body>
+</html>
